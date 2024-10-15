@@ -13,7 +13,8 @@ import (
 	"github.com/chriswachira/aws-cloud-map-custom-health-checker/services"
 )
 
-var ECS_TASK_SHUTDOWN_STATES = []string{
+// List of task lifecycle states that a task transitions to from RUNNING.
+var ecsTaskShutdownStates = []string{
 	"DEACTIVATING",
 	"DEPROVISIONING",
 	"STOPPING",
@@ -22,14 +23,13 @@ var ECS_TASK_SHUTDOWN_STATES = []string{
 func main() {
 
 	log.Println("Waiting for task to fully initialize; sleeping for 60 seconds...")
-
 	time.Sleep(time.Duration(time.Second * 60))
 
 	log.Println("Initializing AWS Cloud Map Custom Health Checker for Amazon ECS...")
 
 	// Fetch the V4 Metadata URI from the injected environment variable.
 	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4-fargate.html
-	ECS_CONTAINER_METADATA_URI_V4, exists := os.LookupEnv("ECS_CONTAINER_METADATA_URI_V4")
+	ecsContainerMetadataV4Endpoint, exists := os.LookupEnv("ECS_CONTAINER_METADATA_URI_V4")
 	if !exists {
 		log.Fatal("Could not get environment variable for the ECS Container Metadata URI! Exiting...")
 	}
@@ -45,7 +45,7 @@ func main() {
 	serviceDiscoveryClient := servicediscovery.NewFromConfig(cfg)
 
 	// Fetch task metadata from the V4 Metadata Endpoint - here we get the task ARN
-	taskMetadataFromEndpoint := services.GetTaskV4Metadata(ECS_CONTAINER_METADATA_URI_V4)
+	taskMetadataFromEndpoint := services.GetTaskV4Metadata(ecsContainerMetadataV4Endpoint)
 
 	// Fetch task information from the ECS API using the task ARN - here we want to get the task's service.
 	taskInfoFromApi := services.DescribeTask(*ecsClient, taskMetadataFromEndpoint)
@@ -79,11 +79,14 @@ func main() {
 			// of the instance's (task's) health status, if no health check is configured.
 			// https://docs.aws.amazon.com/cloud-map/latest/dg/services-health-checks.html
 
-			if healthStatus != "HEALTHY" || slices.Contains(ECS_TASK_SHUTDOWN_STATES, lastKnownStatus) {
+			if healthStatus != "HEALTHY" || slices.Contains(ecsTaskShutdownStates, lastKnownStatus) {
 
 				log.Printf("Attempting to de-register task's Cloud Map instance from the %s discovery name...", *svcConnectResponse.DiscoveryName)
 
-				deregistered := services.DeregisterTaskFromCloudMapService(*serviceDiscoveryClient, *taskInfoFromApi.TaskArn, *svcConnectResponse.DiscoveryArn)
+				taskId := services.GetResourcePhysicalIdFromArn(*taskInfoFromEcsApi.TaskArn)
+				cloudMapServiceId := services.GetResourcePhysicalIdFromArn(*svcConnectResponse.DiscoveryArn)
+
+				deregistered := services.DeregisterTaskFromCloudMapService(*serviceDiscoveryClient, taskId, cloudMapServiceId)
 				if deregistered {
 					break
 				}
