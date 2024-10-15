@@ -56,7 +56,8 @@ func main() {
 			time.Sleep(time.Duration(time.Second * 5))
 
 			// Fetch the task's health status from the ECS API
-			healthStatus := services.GetTaskHealthStatus(taskInfoFromApi)
+			taskInfoFromEcsApi := services.DescribeTask(*ecsClient, taskMetadataFromEndpoint)
+			healthStatus := services.GetTaskHealthStatus(taskInfoFromEcsApi)
 
 			log.Printf("Task %s status is %s", *taskInfoFromApi.TaskArn, healthStatus)
 
@@ -65,10 +66,10 @@ func main() {
 			// of instance's (task's) health status, if no health check is configured.
 			// https://docs.aws.amazon.com/cloud-map/latest/dg/services-health-checks.html
 			if healthStatus != "HEALTHY" {
+
 				log.Printf("Attempting to de-register task's Cloud Map instance from the %s discovery name...", *svcConnectResponse.DiscoveryName)
 
 				deregistered := services.DeregisterTaskFromCloudMapService(*serviceDiscoveryClient, *taskInfoFromApi.TaskArn, *svcConnectResponse.DiscoveryArn)
-
 				if deregistered {
 					break
 				}
