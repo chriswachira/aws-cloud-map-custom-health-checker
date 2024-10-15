@@ -21,6 +21,10 @@ var ECS_TASK_SHUTDOWN_STATES = []string{
 
 func main() {
 
+	log.Println("Waiting for task to fully initialize; sleeping for 60 seconds...")
+
+	time.Sleep(time.Duration(time.Second * 60))
+
 	log.Println("Initializing AWS Cloud Map Custom Health Checker for Amazon ECS...")
 
 	// Fetch the V4 Metadata URI from the injected environment variable.
