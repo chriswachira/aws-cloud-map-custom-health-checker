@@ -48,7 +48,7 @@ func DeregisterTaskFromCloudMapService(client servicediscovery.Client, taskARN s
 
 	deregistrationOutput, err := client.DeregisterInstance(context.TODO(), &cloudMapServiceInstanceParams)
 	if err != nil {
-		log.Fatalf("Failed to deregister %s instance from %s Cloud Map service...", taskId, cloudMapServiceId)
+		log.Fatalf("Failed to deregister %s instance from %s Cloud Map service: %s ", taskId, cloudMapServiceId, err)
 	}
 
 	var cloudMapOperationParams servicediscovery.GetOperationInput
@@ -56,7 +56,7 @@ func DeregisterTaskFromCloudMapService(client servicediscovery.Client, taskARN s
 
 	operationOutput, err := client.GetOperation(context.TODO(), &cloudMapOperationParams)
 	if err != nil {
-		log.Fatalf("There was an error getting info for Cloud Map operation ID %s", *deregistrationOutput.OperationId)
+		log.Fatalf("There was an error getting info for Cloud Map operation ID %s: %s", *deregistrationOutput.OperationId, err)
 
 	}
 
