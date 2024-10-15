@@ -58,14 +58,20 @@ func main() {
 			// Fetch the task's health status from the ECS API
 			taskInfoFromEcsApi := services.DescribeTask(*ecsClient, taskMetadataFromEndpoint)
 			healthStatus := services.GetTaskHealthStatus(taskInfoFromEcsApi)
+			lastKnownStatus := services.GetTaskLastKnownStatus(taskInfoFromEcsApi)
 
-			log.Printf("Task %s status is %s", *taskInfoFromApi.TaskArn, healthStatus)
+			log.Printf("Task %s status is %s and %s", *taskInfoFromApi.TaskArn, healthStatus, lastKnownStatus)
 
 			// If the task's status is anything other than HEALTHY, we'd rather have the task de-registered from
 			// Cloud Map than risk failed requests to the essential task since Cloud Map will route traffic regardless
 			// of instance's (task's) health status, if no health check is configured.
 			// https://docs.aws.amazon.com/cloud-map/latest/dg/services-health-checks.html
-			if healthStatus != "HEALTHY" {
+			//
+			// The reason why we don't check for any other lastKnownStatus other than RUNNING is because the task will
+			// transition to RUNNING only if the essential container has reported a HEALTHY status. And the task can never
+			// "go backwards" from RUNNING state i.e. a RUNNING task will never transition to PROVISIONING, PENDING or
+			// ACTIVATING. See more - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-lifecycle-explanation.html
+			if healthStatus != "HEALTHY" || lastKnownStatus != "RUNNING" {
 
 				log.Printf("Attempting to de-register task's Cloud Map instance from the %s discovery name...", *svcConnectResponse.DiscoveryName)
 
