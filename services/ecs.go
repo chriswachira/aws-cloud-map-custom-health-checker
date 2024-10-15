@@ -103,6 +103,13 @@ func GetTaskHealthStatus(ecsTask types.Task) string {
 
 }
 
+func GetTaskLastKnownStatus(ecsTask types.Task) string {
+
+	// This function gets a given task's last known status from a task type.
+
+	return string(*ecsTask.LastStatus)
+}
+
 func DescribeTask(client ecs.Client, taskMetadataResp FargateTaskMetadataV4Response) types.Task {
 
 	// This function makes a call to the ECS API for fetching information about a task.
