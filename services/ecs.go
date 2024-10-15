@@ -13,6 +13,10 @@ import (
 )
 
 type FargateTaskMetadataV4Response struct {
+
+	// Simple struct that will be used in JSON unmarshalling for data from
+	// the Task Metadata V4 endpoint.
+
 	Cluster       string
 	TaskARN       string
 	Family        string
@@ -22,6 +26,10 @@ type FargateTaskMetadataV4Response struct {
 }
 
 func GetECSServiceForTask(ecsTask types.Task) string {
+
+	// This function gets a task struct and returns the service name where
+	// the task is a part of.
+
 	ecsServiceName := strings.TrimPrefix(*ecsTask.Group, "service:")
 
 	log.Printf("Task %s belongs in the %s service", *ecsTask.TaskArn, ecsServiceName)
@@ -31,19 +39,25 @@ func GetECSServiceForTask(ecsTask types.Task) string {
 
 func GetServiceConnectResources(client *ecs.Client, cluster, ecsService string) (types.ServiceConnectServiceResource, bool) {
 
+	// This function returns Service Connect Resources for a given ECS service. The
+	// returned information is a ServiceConnectServiceResource type and a boolean indicating
+	// where the Service has been configured with Service Connect or not.
+
 	var serviceParams ecs.DescribeServicesInput
 	serviceParams.Cluster = &cluster
 	serviceParams.Services = []string{ecsService}
 
 	output, err := client.DescribeServices(context.TODO(), &serviceParams)
-
 	if err != nil {
 		log.Fatal("There was an error when describing the services: ", err)
 	}
 
 	log.Println("Successfully fetched information for service -", ecsService)
+
+	// Get latest deployment for the service.
 	latestDeployment := output.Services[0].Deployments[0]
 
+	// Check is the is a ServiceConnectConfiguration, if not present, return a nil type and false
 	if latestDeployment.ServiceConnectConfiguration == nil {
 		log.Printf("Service Connect is not enabled for the %s service! Exiting...", ecsService)
 
@@ -57,6 +71,10 @@ func GetServiceConnectResources(client *ecs.Client, cluster, ecsService string) 
 }
 
 func GetTaskV4Metadata(taskMetadataEndpoint string) FargateTaskMetadataV4Response {
+
+	// This function makes a HTTP request to the ECS Task Metadata V4 endpoint and
+	// unmarshalls (decodes) the JSON data into our FargateTaskMetadataV4Response struct.
+
 	taskMetadataResp, err := http.Get(taskMetadataEndpoint + "/task")
 	if err != nil {
 		log.Fatal("There was an error fetching tasks metadata: ", err)
@@ -79,11 +97,16 @@ func GetTaskV4Metadata(taskMetadataEndpoint string) FargateTaskMetadataV4Respons
 
 func GetTaskHealthStatus(ecsTask types.Task) string {
 
+	// This function gets a given task's health status from a task type.
+
 	return string(ecsTask.HealthStatus)
 
 }
 
 func DescribeTask(client ecs.Client, taskMetadataResp FargateTaskMetadataV4Response) types.Task {
+
+	// This function makes a call to the ECS API for fetching information about a task.
+	// Information about a task's service is present in the API's response.
 
 	var tasks = []string{taskMetadataResp.TaskARN}
 	var include []types.TaskField
