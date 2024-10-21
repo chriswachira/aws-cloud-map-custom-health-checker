@@ -12,6 +12,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
+type TaskContainer struct {
+	Name          string
+	Image         string
+	DesiredStatus string
+	KnownStatus   string
+	Health        struct {
+		Status      string
+		StatusSince string
+		Output      string
+	}
+}
+
 type FargateTaskMetadataV4Response struct {
 
 	// Simple struct that will be used in JSON unmarshalling for data from
@@ -23,6 +35,7 @@ type FargateTaskMetadataV4Response struct {
 	Revision      string
 	DesiredStatus string
 	KnownStatus   string
+	Containers    []TaskContainer
 }
 
 func GetECSServiceForTask(ecsTask types.Task) string {
@@ -59,7 +72,7 @@ func GetServiceConnectResources(client *ecs.Client, cluster, ecsService string) 
 
 	// Check is the is a ServiceConnectConfiguration, if not present, return a nil type and false
 	if latestDeployment.ServiceConnectConfiguration == nil {
-		log.Printf("Service Connect is not enabled for the %s service! Exiting...", ecsService)
+		log.Fatalf("Service Connect is not enabled for the %s service! Exiting...", ecsService)
 
 		var dummyServiceConnectResources types.ServiceConnectServiceResource
 		return dummyServiceConnectResources, false
@@ -129,5 +142,51 @@ func DescribeTask(client ecs.Client, taskMetadataResp FargateTaskMetadataV4Respo
 	}
 
 	return ecsTaskDetails.Tasks[0]
+
+}
+
+func GetTaskDefinitionDetails(client ecs.Client, taskDefinitionName string, taskDefinitionRevision string) types.TaskDefinition {
+
+	var taskDefinitionParams ecs.DescribeTaskDefinitionInput
+	var taskDefinitionWithRevision = taskDefinitionName + ":" + taskDefinitionRevision
+
+	taskDefinitionParams.TaskDefinition = &taskDefinitionWithRevision
+
+	taskDefinitionDetails, err := client.DescribeTaskDefinition(context.TODO(), &taskDefinitionParams)
+	if err != nil {
+		log.Fatal("There was an error when describing the task definition: ", err)
+	}
+
+	return *taskDefinitionDetails.TaskDefinition
+
+}
+
+func GetTaskEssentialContainers(taskDefinition types.TaskDefinition) []string {
+
+	essentialContainerNames := []string{}
+
+	for _, containerDefinition := range taskDefinition.ContainerDefinitions {
+		if *containerDefinition.Essential {
+			essentialContainerNames = append(essentialContainerNames, *containerDefinition.Name)
+		}
+	}
+
+	return essentialContainerNames
+}
+
+func AggregateTaskHealthFromContainers(essentialContainers []string, taskInfoFromMetadataEndpoint FargateTaskMetadataV4Response) string {
+
+	var essentialContainersHealthCount int
+	for _, container := range taskInfoFromMetadataEndpoint.Containers {
+		if container.Health.Status == "HEALTHY" {
+			essentialContainersHealthCount += 1
+		}
+	}
+
+	if essentialContainersHealthCount < len(essentialContainers) {
+		return "UNHEALTHY"
+	}
+
+	return "HEALTHY"
 
 }
